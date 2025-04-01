@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-04-01
+
+### Added
+- Server prompts handling with support for templates
+- New flexible API for the `messages` method that supports both hash and array inputs
+- Updated example prompts to demonstrate the new API capabilities
+
 ## [1.0.0] - 2025-03-30
 
 ### Added
