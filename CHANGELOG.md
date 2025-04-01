@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Tool annotations support for providing hints about tool behavior (readOnlyHint, destructiveHint, etc.)
+- Comprehensive prompts API support
+- Prompt templates with ERB support
+- Prompt argument validation
+- New flexible API for the `messages` method supporting both hash and array inputs
+- Prompt ERB template support for JSON/XML structured data
 
 ## [1.5.0] - 2025-06-01
 ### Added
@@ -54,7 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security enhancement: Bing only to localhost by default [#44 @yjacquin](https://github.com/yjacquin/fast-mcp/pull/44)
 - Prevent AuthenticatedRackMiddleware from blocking other rails routes[#35 @JulianPasquale](https://github.com/yjacquin/fast-mcp/pull/35)
 - Stop Forcing reconnections after 30 pings [#42 @zoedsoupe](https://github.com/yjacquin/fast-mcp/pull/42)
-
 
 ## [1.1.0] - 2025-04-13
 ### Added
