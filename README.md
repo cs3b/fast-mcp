@@ -284,6 +284,10 @@ Add your server to your Claude Desktop configuration at:
 }
 ```
 
+## How to add a MCP server to Claude, Cursor, or other MCP clients?
+
+Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
+
 ## 📊 Supported Specifications
 
 | Feature | Status |
