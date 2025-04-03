@@ -27,11 +27,11 @@ Fast MCP solves all these problems by providing a clean, Ruby-focused implementa
 
 - 🛠️ **Tools API** - Let AI models call your Ruby functions securely, with in-depth argument validation through [Dry-Schema](https://github.com/dry-rb/dry-schema).
 - 📚 **Resources API** - Share data between your app and AI models
+- 💬 **Prompt Handling** - Create structured message templates for LLM interactions
 - 🔄 **Multiple Transports** - Choose from STDIO, HTTP, or SSE based on your needs
 - 🧩 **Framework Integration** - Works seamlessly with Rails, Sinatra or any Rack app.
 - 🔒 **Authentication Support** - Secure your AI-powered endpoints with ease
 - 🚀 **Real-time Updates** - Subscribe to changes for interactive applications
-
 
 ## 💎 What Makes FastMCP Great
 ```ruby
@@ -284,9 +284,6 @@ Add your server to your Claude Desktop configuration at:
 }
 ```
 
-## How to add a MCP server to Claude, Cursor, or other MCP clients?
-Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
-
 ## 📊 Supported Specifications
 
 | Feature | Status |
@@ -294,6 +291,7 @@ Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
 | ✅ **JSON-RPC 2.0** | Full implementation for communication |
 | ✅ **Tool Definition & Calling** | Define and call tools with rich argument types |
 | ✅ **Resource Management** | Create, read, update, and subscribe to resources |
+| ✅ **Prompt Handling** | Create structured message templates for LLM interactions |
 | ✅ **Transport Options** | STDIO, HTTP, and SSE for flexible integration |
 | ✅ **Framework Integration** | Rails, Sinatra, Hanami, and any Rack-compatible framework |
 | ✅ **Authentication** | Secure your AI endpoints with token authentication |
@@ -315,6 +313,7 @@ Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
 - [🌐 Sinatra Integration](docs/sinatra_integration.md)
 - [📚 Resources](docs/resources.md)
 - [🛠️ Tools](docs/tools.md)
+- [💬 Prompts](docs/prompts.md)
 
 ## 💻 Examples
 
@@ -323,6 +322,7 @@ Check out the [examples directory](examples) for more detailed examples:
 - **🔨 Basic Examples**:
   - [Simple Server](examples/server_with_stdio_transport.rb)
   - [Tool Examples](examples/tool_examples.rb)
+  - [Prompt Examples](examples/prompts)
 
 - **🌐 Web Integration**:
   - [Rack Middleware](examples/rack_middleware.rb)
@@ -353,3 +353,6 @@ This project is available as open source under the terms of the [MIT License](ht
 - The [Model Context Protocol](https://github.com/modelcontextprotocol) team for creating the specification
 - The [Dry-Schema](https://github.com/dry-rb/dry-schema) team for the argument validation.
 - All contributors to this project
+
+## How to add a MCP server to Claude, Cursor, or other MCP clients?
+Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
