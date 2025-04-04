@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require 'spec_helper'
+require 'base64'
 
 RSpec.describe FastMcp::Prompt do
   let(:roles) { { assistant: 'assistant', user: 'user' } }
@@ -158,18 +159,21 @@ RSpec.describe FastMcp::Prompt do
     end
 
     it 'creates a valid message with image content' do
+      # Using valid base64 data for testing
+      valid_base64 = Base64.strict_encode64('test image data')
+      
       message = instance.message(
         role: 'user',
         content: {
           type: 'image',
-          data: 'base64data',
+          data: valid_base64,
           mimeType: 'image/png'
         }
       )
 
       expect(message[:role]).to eq('user')
       expect(message[:content][:type]).to eq('image')
-      expect(message[:content][:data]).to eq('base64data')
+      expect(message[:content][:data]).to eq(valid_base64)
       expect(message[:content][:mimeType]).to eq('image/png')
     end
 
@@ -246,7 +250,7 @@ RSpec.describe FastMcp::Prompt do
           role: 'user',
           content: {
             type: 'image',
-            data: 'base64data'
+            data: 'base64-encoded-image-data'
           }
         )
       end.to raise_error(ArgumentError, /Missing :mimeType/)
@@ -274,9 +278,9 @@ RSpec.describe FastMcp::Prompt do
 
     it 'preserves the order of messages' do
       result = instance.messages(
-        {user: 'First message'},
-        {assistant: 'Second message'},
-        {user: 'Third message'}
+        user_1: 'First message',
+        assistant: 'Second message',
+        user_2: 'Third message'
       )
 
       expect(result.size).to eq(3)
@@ -294,9 +298,9 @@ RSpec.describe FastMcp::Prompt do
     it 'raises an error for invalid role' do
       expect do
         instance.messages(
-          {invalid_role: 'Hello!'}
+          invalid_role: 'Hello!'
         )
-      end.to raise_error(ArgumentError, /Invalid role/)
+      end.to raise_error(KeyError, /key not found: :invalid_role/)
     end
   end
 
@@ -314,9 +318,12 @@ RSpec.describe FastMcp::Prompt do
     let(:instance) { described_class.new }
 
     it 'creates a valid image content object' do
-      content = instance.image_content('base64data', 'image/png')
+      # Using valid base64 data for testing
+      valid_base64 = Base64.strict_encode64('test image data')
+      
+      content = instance.image_content(valid_base64, 'image/png')
       expect(content[:type]).to eq('image')
-      expect(content[:data]).to eq('base64data')
+      expect(content[:data]).to eq(valid_base64)
       expect(content[:mimeType]).to eq('image/png')
     end
   end

@@ -104,8 +104,8 @@ module FastMcp
 
     # Register a prompt with the server
     def register_prompt(prompt)
-      @prompts[prompt.name] = prompt
-      @logger.info("Registered prompt: #{prompt.name}")
+      @prompts[prompt.prompt_name] = prompt
+      @logger.info("Registered prompt: #{prompt.prompt_name}")
       prompt.server = self
       # Notify subscribers about the list change
       notify_prompt_list_changed if @transport
@@ -437,14 +437,16 @@ module FastMcp
     end
 
     # Handle prompts/list request
-    def handle_prompts_list(params, id)
+    def handle_prompts_list(_params, id)
       # We acknowledge the cursor parameter but don't use it for pagination in this implementation
       # The cursor is included in the response for compatibility with the spec
-      next_cursor = params['cursor']
+
+      # TODO: We don't have pagination utils
+      # next_cursor = params['cursor']
 
       prompts_list = @prompts.values.map do |prompt|
         prompt_data = {
-          name: prompt.name,
+          name: prompt.prompt_name,
           description: prompt.description || ''
         }
 
@@ -469,7 +471,9 @@ module FastMcp
         prompt_data
       end
 
-      send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      # TODO: we don't pagination utils
+      # send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      send_result({ prompts: prompts_list }, id)
     end
 
     # Handle prompts/get request

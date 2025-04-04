@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2025-04-14
+## [Unreleased]
 
 ### Added
 - Prompts Feature 
@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Namespace consistency correction (FastMCP -> FastMcp) throughout the codebase
 
 ### Improved
-- ⚠️ [Breaking] Resource content declaration changes
+- [Breaking] Resource content declaration changes
   - Now resources implement `content` over `default_content`
   - `content` is dynamically called when calling a resource, this implies we can declare dynamic resource contents like:
   ```ruby

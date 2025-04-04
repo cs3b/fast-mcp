@@ -2,6 +2,7 @@
 
 require 'dry-schema'
 require 'erb'
+require 'base64'
 
 module FastMcp
   # Main Prompt class that represents an MCP Prompt
@@ -77,72 +78,30 @@ module FastMcp
       }
     end
 
-    # Create multiple messages from a hash of role => content pairs or an array of role-keyed hashes
-    # @param args [Hash, Array<Hash>] Either a hash of role => content pairs or an array of single-key hashes with role as key
+    # Create multiple messages from a hash of role => content pairs
+    # @param messages_hash [Hash] A hash of role => content pairs
     # @return [Array<Hash>] An array of messages
-    def messages(*args)
-      result = []
+    def messages(messages_hash)
+      raise ArgumentError, 'At least one message must be provided' if messages_hash.empty?
       
-      # Handle both hash and array arguments for backward compatibility
-      if args.length == 1 && args.first.is_a?(Hash)
-        # Original API: hash of role => content pairs
-        messages_hash = args.first
-        raise ArgumentError, 'At least one message must be provided' if messages_hash.empty?
-        
-        messages_hash.each do |role_key, content|
-          # Extract the base role (without any suffix like _2)
-          base_role = role_key.to_s.gsub(/_\d+$/, '')
-          
-          # Validate the role
-          validate_role(base_role)
-          
-          # Add the message to the result
-          if content.is_a?(Hash)
-            result << message(role: base_role, content: content)
-          else
-            result << message(role: base_role, content: text_content(content))
-          end
-        end
-      else
-        # New API: array of single-key hashes with role as key
-        raise ArgumentError, 'At least one message must be provided' if args.empty?
-        
-        args.each do |msg_hash|
-          raise ArgumentError, 'Each message must be a hash' unless msg_hash.is_a?(Hash)
-          
-          # Each hash should have a single key (the role)
-          msg_hash.each do |role_key, content|
-            # Extract the base role (without any suffix like _2)
-            base_role = role_key.to_s.gsub(/_\d+$/, '')
-            
-            # Validate the role
-            validate_role(base_role)
-            
-            # Add the message to the result
-            if content.is_a?(Hash)
-              result << message(role: base_role, content: content)
-            else
-              result << message(role: base_role, content: text_content(content))
-            end
-          end
-        end
+      messages_hash.map do |role_key, content|
+        role = role_key.to_s.gsub(/_\d+$/, '').to_sym
+        { role: ROLES.fetch(role), content: content_from(content) }
       end
-
-      result
     end
     
     # Helper method to extract content from a hash
-    def content_from_hash(hash)
-      if hash.key?(:text)
-        text_content(hash[:text])
-      elsif hash.key?(:data) && hash.key?(:mimeType)
-        image_content(hash[:data], hash[:mimeType])
-      elsif hash.key?(:resource)
-        # It's already a resource content
+    def content_from(content)
+      if content.is_a?(String)
+        text_content(content)
+      elsif content.key?(:text)
+        text_content(content[:text])
+      elsif content.key?(:data) && content.key?(:mimeType)
+        image_content(content[:data], content[:mimeType])
+      elsif content.key?(:resource)
         hash
       else
-        # Default to text content with empty string
-        text_content('')
+        text_content('unsupported content')
       end
     end
 
@@ -200,6 +159,19 @@ module FastMcp
       when CONTENT_TYPE_IMAGE
         raise ArgumentError, "Missing :data in image content" unless content[:data]
         raise ArgumentError, "Missing :mimeType in image content" unless content[:mimeType]
+        
+        # Validate that data is a string
+        unless content[:data].is_a?(String)
+          raise ArgumentError, "Image :data must be a string containing base64-encoded data"
+        end
+        
+        # Validate that data is valid base64
+        begin
+          # Try to decode the base64 data
+          Base64.strict_decode64(content[:data])
+        rescue ArgumentError
+          raise ArgumentError, "Image :data must be valid base64-encoded data"
+        end
       when CONTENT_TYPE_RESOURCE
         validate_resource_content(content[:resource])
       else

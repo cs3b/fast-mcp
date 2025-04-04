@@ -219,6 +219,29 @@ end
 # Register the resource with the server
 server.register_resource(StatisticsResource)
 
+# Define a prompt by inheriting from FastMcp::Prompt
+class GreetingPrompt < FastMcp::Prompt
+  prompt_name 'greeting'
+  description 'A friendly greeting prompt'
+  
+  arguments do
+    required(:name).filled(:string).description("User's name")
+    optional(:time_of_day).filled(:string).description("Morning, afternoon, or evening")
+  end
+  
+  def call(name:, time_of_day: nil)
+    greeting = time_of_day ? "Good #{time_of_day}" : "Hello"
+    
+    messages(
+      assistant: "#{greeting}, #{name}! How can I help you today?",
+      user: "I'd like some assistance with Ruby programming."
+    )
+  end
+end
+
+# Register the prompt with the server
+server.register_prompt(GreetingPrompt)
+
 # Start the server
 server.start
 ```
@@ -389,6 +412,3 @@ This project is available as open source under the terms of the [MIT License](ht
 - The [Model Context Protocol](https://github.com/modelcontextprotocol) team for creating the specification
 - The [Dry-Schema](https://github.com/dry-rb/dry-schema) team for the argument validation.
 - All contributors to this project
-
-## How to add a MCP server to Claude, Cursor, or other MCP clients?
-Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
