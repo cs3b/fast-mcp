@@ -440,7 +440,9 @@ module FastMcp
     def handle_prompts_list(params, id)
       # We acknowledge the cursor parameter but don't use it for pagination in this implementation
       # The cursor is included in the response for compatibility with the spec
-      next_cursor = params['cursor']
+
+      # TODO: We don't have pagination utils
+      # next_cursor = params['cursor']
 
       prompts_list = @prompts.values.map do |prompt|
         prompt_data = {
@@ -469,7 +471,9 @@ module FastMcp
         prompt_data
       end
 
-      send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      # TODO: we don't pagination utils
+      # send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      send_result({ prompts: prompts_list }, id)
     end
 
     # Handle prompts/get request
