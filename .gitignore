@@ -4,3 +4,5 @@
 
 # Ignore gem files
 *.gem
+
+# Ignore .DS_Store files
