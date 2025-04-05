@@ -357,6 +357,3 @@ This project is available as open source under the terms of the [MIT License](ht
 - The [Model Context Protocol](https://github.com/modelcontextprotocol) team for creating the specification
 - The [Dry-Schema](https://github.com/dry-rb/dry-schema) team for the argument validation.
 - All contributors to this project
-
-## How to add a MCP server to Claude, Cursor, or other MCP clients?
-Please refer to [configuring_mcp_clients](docs/configuring_mcp_clients.md)
