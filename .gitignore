@@ -5,4 +5,17 @@
 *.gem
 
 # Ignore docs-dev
-docs-dev
+dev-*
+dev-handbook
+dev-tools
+dev-taskflow/*
+.gitmodules
+.coding-agent
+.env
+.claude
+CLAUDE.md
+.gitignore
+docs/what-do-we-build.md
+docs/architecture.md
+docs/blueprint.md
+docs/tools.md

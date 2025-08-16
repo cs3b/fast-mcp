@@ -21,9 +21,40 @@ module FastMcp
 
     class << self
       attr_accessor :server
+      attr_reader :authorization_blocks
 
       def arguments(&block)
         @input_schema = Dry::Schema.JSON(&block)
+      end
+
+      def tags(*tag_list)
+        if tag_list.empty?
+          @tags || []
+        else
+          @tags = tag_list.flatten.map(&:to_sym)
+        end
+      end
+
+      def metadata(key = nil, value = nil)
+        @metadata ||= {}
+        if key.nil?
+          @metadata
+        elsif value.nil?
+          @metadata[key]
+        else
+          @metadata[key] = value
+        end
+      end
+
+      def annotations(annotations_hash = nil)
+        return @annotations || {} if annotations_hash.nil?
+
+        @annotations = annotations_hash
+      end
+
+      def authorize(&block)
+        @authorization_blocks ||= []
+        @authorization_blocks.push block
       end
 
       def input_schema
@@ -33,6 +64,7 @@ module FastMcp
       def prompt_name(name = nil)
         if name.nil?
           return @name if @name
+
           # Get the actual class name without namespace
           class_name = self.name.to_s.split('::').last
           # Remove "Prompt" suffix and convert to snake_case
@@ -60,11 +92,37 @@ module FastMcp
       end
     end
 
+    def initialize(headers: {})
+      @headers = headers
+    end
+
+    attr_reader :headers
+
     def call_with_schema_validation!(**args)
       arg_validation = self.class.input_schema.call(args)
       raise InvalidArgumentsError, arg_validation.errors.to_h.to_json if arg_validation.errors.any?
 
       call(**args)
+    end
+
+    def authorized?(**args)
+      auth_checks = self.class.ancestors.filter_map do |ancestor|
+        ancestor.ancestors.include?(FastMcp::Prompt) &&
+          ancestor.instance_variable_get(:@authorization_blocks)
+      end.flatten
+
+      return true if auth_checks.empty?
+
+      arg_validation = self.class.input_schema.call(args)
+      raise InvalidArgumentsError, arg_validation.errors.to_h.to_json if arg_validation.errors.any?
+
+      auth_checks.all? do |auth_check|
+        if auth_check.parameters.empty?
+          instance_exec(&auth_check)
+        else
+          instance_exec(**args, &auth_check)
+        end
+      end
     end
 
     # Create a message with the given role and content
@@ -83,13 +141,13 @@ module FastMcp
     # @return [Array<Hash>] An array of messages
     def messages(messages_hash)
       raise ArgumentError, 'At least one message must be provided' if messages_hash.empty?
-      
+
       messages_hash.map do |role_key, content|
         role = role_key.to_s.gsub(/_\d+$/, '').to_sym
         { role: ROLES.fetch(role), content: content_from(content) }
       end
     end
-    
+
     # Helper method to extract content from a hash
     def content_from(content)
       if content.is_a?(String)
@@ -141,7 +199,7 @@ module FastMcp
     def validate_role(role)
       # Convert role to symbol if it's a string
       role_key = role.is_a?(String) ? role.to_sym : role
-      
+
       # Use fetch with a block for better error handling
       ROLES.fetch(role_key) do
         raise ArgumentError, "Invalid role: #{role}. Must be one of: #{ROLES.keys.join(', ')}"
@@ -155,22 +213,22 @@ module FastMcp
 
       case content[:type]
       when CONTENT_TYPE_TEXT
-        raise ArgumentError, "Missing :text in text content" unless content[:text]
+        raise ArgumentError, 'Missing :text in text content' unless content[:text]
       when CONTENT_TYPE_IMAGE
-        raise ArgumentError, "Missing :data in image content" unless content[:data]
-        raise ArgumentError, "Missing :mimeType in image content" unless content[:mimeType]
-        
+        raise ArgumentError, 'Missing :data in image content' unless content[:data]
+        raise ArgumentError, 'Missing :mimeType in image content' unless content[:mimeType]
+
         # Validate that data is a string
         unless content[:data].is_a?(String)
-          raise ArgumentError, "Image :data must be a string containing base64-encoded data"
+          raise ArgumentError, 'Image :data must be a string containing base64-encoded data'
         end
-        
+
         # Validate that data is valid base64
         begin
           # Try to decode the base64 data
           Base64.strict_decode64(content[:data])
         rescue ArgumentError
-          raise ArgumentError, "Image :data must be valid base64-encoded data"
+          raise ArgumentError, 'Image :data must be valid base64-encoded data'
         end
       when CONTENT_TYPE_RESOURCE
         validate_resource_content(content[:resource])
@@ -180,10 +238,10 @@ module FastMcp
     end
 
     def validate_resource_content(resource)
-      raise ArgumentError, "Missing :resource in resource content" unless resource
-      raise ArgumentError, "Missing :uri in resource content" unless resource[:uri]
-      raise ArgumentError, "Missing :mimeType in resource content" unless resource[:mimeType]
-      raise ArgumentError, "Resource must have either :text or :blob" unless resource[:text] || resource[:blob]
+      raise ArgumentError, 'Missing :resource in resource content' unless resource
+      raise ArgumentError, 'Missing :uri in resource content' unless resource[:uri]
+      raise ArgumentError, 'Missing :mimeType in resource content' unless resource[:mimeType]
+      raise ArgumentError, 'Resource must have either :text or :blob' unless resource[:text] || resource[:blob]
     end
   end
 end
