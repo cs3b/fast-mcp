@@ -261,21 +261,7 @@ module FastMcp
       @transport.send_message(notification)
     end
 
-    # Add filter for prompts
-    def filter_prompts(&block)
-      @prompt_filters << block if block_given?
-    end
-
     private
-
-    # Apply all prompt filters to the prompts collection
-    def apply_prompt_filters(request)
-      filtered_prompts = @prompts.values
-      @prompt_filters.each do |filter|
-        filtered_prompts = filter.call(request, filtered_prompts)
-      end
-      filtered_prompts
-    end
 
     PROTOCOL_VERSION = '2024-11-05'
 
@@ -491,14 +477,27 @@ module FastMcp
     end
 
     # Handle prompts/list request
-    def handle_prompts_list(_params, id)
+    def handle_prompts_list(params, id)
       # We acknowledge the cursor parameter but don't use it for pagination in this implementation
       # The cursor is included in the response for compatibility with the spec
 
       # TODO: We don't have pagination utils
       # next_cursor = params['cursor']
 
-      prompts_list = @prompts.values.map do |prompt|
+      # Apply filtering if prompt filters are configured
+      prompts_to_list = if @prompt_filters.any?
+                          apply_prompt_filters(
+                            {
+                              'method' => 'prompts/list',
+                              'params' => params,
+                              'id' => id
+                            }
+                          )
+                        else
+                          @prompts.values
+                        end
+
+      prompts_list = prompts_to_list.map do |prompt|
         prompt_data = {
           name: prompt.prompt_name,
           description: prompt.description || ''
