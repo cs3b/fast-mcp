@@ -269,28 +269,26 @@ end
 # Register the resource with the server
 server.register_resource(StatisticsResource)
 
-# Define a prompt by inheriting from FastMcp::Prompt
-class GreetingPrompt < FastMcp::Prompt
-  prompt_name 'greeting'
-  description 'A friendly greeting prompt'
+# Define prompts for structured AI interactions
+class CodeReviewPrompt < FastMcp::Prompt
+  name "code_review"
+  description "Review code for best practices"
   
   arguments do
-    required(:name).filled(:string).description("User's name")
-    optional(:time_of_day).filled(:string).description("Morning, afternoon, or evening")
+    required(:code).filled(:string)
+    required(:language).filled(:string)
   end
   
-  def call(name:, time_of_day: nil)
-    greeting = time_of_day ? "Good #{time_of_day}" : "Hello"
-    
+  def call(code:, language:)
     messages(
-      assistant: "#{greeting}, #{name}! How can I help you today?",
-      user: "I'd like some assistance with Ruby programming."
+      assistant: "I'll review your #{language} code for best practices and potential improvements.",
+      user: "Please review this #{language} code:\n\n```#{language}\n#{code}\n```\n\nFocus on readability, performance, and maintainability."
     )
   end
 end
 
 # Register the prompt with the server
-server.register_prompt(GreetingPrompt)
+server.register_prompt(CodeReviewPrompt)
 
 # Start the server
 server.start

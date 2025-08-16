@@ -19,6 +19,9 @@ Prompts are a powerful feature in Fast MCP that allow you to define structured m
 - [Advanced Prompt Features](#advanced-prompt-features)
   - [Message Content Types](#message-content-types)
   - [Dynamic Content](#dynamic-content)
+  - [Prompt Filtering](#prompt-filtering)
+  - [Prompt Annotations](#prompt-annotations)
+  - [Authorization](#authorization)
 - [Best Practices](#best-practices)
 - [Examples](#examples)
 
@@ -395,6 +398,45 @@ class WeatherPrompt < FastMcp::Prompt
   end
 end
 ```
+
+### Prompt Filtering
+
+Filter prompts dynamically based on request context:
+
+```ruby
+server.filter_prompts do |request, prompts|
+  # Filter by user permissions, tags, etc.
+  prompts.select { |p| p.authorized?(user: request.user) }
+end
+```
+
+This allows you to control which prompts are available to clients based on the current request context, user permissions, or other criteria.
+
+### Prompt Annotations
+
+Add metadata to prompts:
+
+```ruby
+class ReviewPrompt < FastMcp::Prompt
+  tags :code_review, :ai_assisted
+  metadata :version, "2.0"
+  annotations experimental: false
+end
+```
+
+Annotations provide additional information about prompts that can be used by clients for better organization and presentation.
+
+### Authorization
+
+Control access to prompts:
+
+```ruby
+class SecurePrompt < FastMcp::Prompt
+  authorize { |user:| user.has_permission?(:use_prompts) }
+end
+```
+
+Authorization blocks allow you to implement fine-grained access control for prompts, ensuring only authorized users can access sensitive or privileged prompt templates.
 
 ## Best Practices
 
