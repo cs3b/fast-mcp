@@ -33,7 +33,7 @@ module FastMcp
       @name = name
       @version = version
       @tools = {}
-      @resources = {}
+      @resources = []
       @prompts = {}
       @resource_subscriptions = {}
       @logger = logger
@@ -43,6 +43,7 @@ module FastMcp
       @capabilities = DEFAULT_CAPABILITIES.dup
       @tool_filters = []
       @resource_filters = []
+      @prompt_filters = []
 
       # Merge with provided capabilities
       @capabilities.merge!(capabilities) if capabilities.is_a?(Hash)
@@ -111,8 +112,8 @@ module FastMcp
 
     # Register a prompt with the server
     def register_prompt(prompt)
-      @prompts[prompt.name] = prompt
-      @logger.info("Registered prompt: #{prompt.name}")
+      @prompts[prompt.prompt_name] = prompt
+      @logger.info("Registered prompt: #{prompt.prompt_name}")
       prompt.server = self
       # Notify subscribers about the list change
       notify_prompt_list_changed if @transport
@@ -125,7 +126,7 @@ module FastMcp
       @logger.transport = :stdio
       @logger.info("Starting MCP server: #{@name} v#{@version}")
       @logger.info("Available tools: #{@tools.keys.join(', ')}")
-      @logger.info("Available resources: #{@resources.keys.join(', ')}")
+      @logger.info("Available resources: #{@resources.map(&:resource_name).join(', ')}")
       @logger.info("Available prompts: #{@prompts.keys.join(', ')}")
 
       # Use STDIO transport by default
@@ -138,7 +139,7 @@ module FastMcp
     def start_rack(app, options = {})
       @logger.info("Starting MCP server as Rack middleware: #{@name} v#{@version}")
       @logger.info("Available tools: #{@tools.keys.join(', ')}")
-      @logger.info("Available resources: #{@resources.keys.join(', ')}")
+      @logger.info("Available resources: #{@resources.map(&:resource_name).join(', ')}")
       @logger.info("Available prompts: #{@prompts.keys.join(', ')}")
 
       # Use Rack transport
@@ -153,7 +154,7 @@ module FastMcp
     def start_authenticated_rack(app, options = {})
       @logger.info("Starting MCP server as Authenticated Rack middleware: #{@name} v#{@version}")
       @logger.info("Available tools: #{@tools.keys.join(', ')}")
-      @logger.info("Available resources: #{@resources.keys.join(', ')}")
+      @logger.info("Available resources: #{@resources.map(&:resource_name).join(', ')}")
       @logger.info("Available prompts: #{@prompts.keys.join(', ')}")
 
       # Use Rack transport
@@ -230,7 +231,7 @@ module FastMcp
       @logger.warn("Notifying subscribers about resource update: #{uri}, #{@resource_subscriptions.inspect}")
       return unless @client_initialized && @resource_subscriptions.key?(uri)
 
-      resource = @resources[uri]
+      resource = @resources.find { |r| r.uri == uri }
       notification = {
         jsonrpc: '2.0',
         method: 'notifications/resources/updated',
@@ -259,9 +260,22 @@ module FastMcp
 
       @transport.send_message(notification)
     end
+
+    # Add filter for prompts
+    def filter_prompts(&block)
+      @prompt_filters << block if block_given?
     end
 
     private
+
+    # Apply all prompt filters to the prompts collection
+    def apply_prompt_filters(request)
+      filtered_prompts = @prompts.values
+      @prompt_filters.each do |filter|
+        filtered_prompts = filter.call(request, filtered_prompts)
+      end
+      filtered_prompts
+    end
 
     PROTOCOL_VERSION = '2024-11-05'
 
@@ -477,14 +491,16 @@ module FastMcp
     end
 
     # Handle prompts/list request
-    def handle_prompts_list(params, id)
+    def handle_prompts_list(_params, id)
       # We acknowledge the cursor parameter but don't use it for pagination in this implementation
       # The cursor is included in the response for compatibility with the spec
-      next_cursor = params['cursor']
+
+      # TODO: We don't have pagination utils
+      # next_cursor = params['cursor']
 
       prompts_list = @prompts.values.map do |prompt|
         prompt_data = {
-          name: prompt.name,
+          name: prompt.prompt_name,
           description: prompt.description || ''
         }
 
@@ -509,7 +525,9 @@ module FastMcp
         prompt_data
       end
 
-      send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      # TODO: we don't pagination utils
+      # send_result({ prompts: prompts_list, nextCursor: next_cursor }, id)
+      send_result({ prompts: prompts_list }, id)
     end
 
     # Handle prompts/get request
