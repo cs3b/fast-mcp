@@ -350,6 +350,172 @@ RSpec.describe FastMcp::Prompt do
     end
   end
 
+  describe "tags" do
+    it "supports tag assignment" do
+      test_class = Class.new(described_class)
+      test_class.tags :ai, :review, :automated
+      
+      expect(test_class.tags).to eq([:ai, :review, :automated])
+    end
+    
+    it "returns empty array when no tags" do
+      test_class = Class.new(described_class)
+      expect(test_class.tags).to eq([])
+    end
+
+    it "accepts nested arrays and flattens them" do
+      test_class = Class.new(described_class)
+      test_class.tags [:ai, :review], :automated
+      
+      expect(test_class.tags).to eq([:ai, :review, :automated])
+    end
+
+    it "converts strings to symbols" do
+      test_class = Class.new(described_class)
+      test_class.tags 'ai', 'review'
+      
+      expect(test_class.tags).to eq([:ai, :review])
+    end
+  end
+
+  describe "metadata" do
+    it "stores and retrieves metadata" do
+      test_class = Class.new(described_class)
+      test_class.metadata :version, "1.0"
+      test_class.metadata :author, "Test"
+      
+      expect(test_class.metadata(:version)).to eq("1.0")
+      expect(test_class.metadata(:author)).to eq("Test")
+    end
+
+    it "returns empty hash when no metadata" do
+      test_class = Class.new(described_class)
+      expect(test_class.metadata).to eq({})
+    end
+
+    it "returns all metadata when called without arguments" do
+      test_class = Class.new(described_class)
+      test_class.metadata :version, "1.0"
+      test_class.metadata :author, "Test"
+      
+      expect(test_class.metadata).to eq({ version: "1.0", author: "Test" })
+    end
+
+    it "returns nil for non-existent metadata keys" do
+      test_class = Class.new(described_class)
+      expect(test_class.metadata(:non_existent)).to be_nil
+    end
+  end
+
+  describe "annotations" do
+    it "supports annotations hash" do
+      test_class = Class.new(described_class)
+      test_class.annotations experimental: true, beta: true
+      
+      expect(test_class.annotations).to eq(experimental: true, beta: true)
+    end
+
+    it "returns empty hash when no annotations" do
+      test_class = Class.new(described_class)
+      expect(test_class.annotations).to eq({})
+    end
+
+    it "overwrites existing annotations" do
+      test_class = Class.new(described_class)
+      test_class.annotations experimental: true
+      test_class.annotations beta: true
+      
+      expect(test_class.annotations).to eq(beta: true)
+    end
+  end
+
+  describe "authorization" do
+    it "supports authorization blocks" do
+      test_class = Class.new(described_class) do
+        authorize { |user:| user.admin? }
+      end
+      
+      prompt = test_class.new(headers: {})
+      admin = double(admin?: true)
+      user = double(admin?: false)
+      
+      expect(prompt.authorized?(user: admin)).to be true
+      expect(prompt.authorized?(user: user)).to be false
+    end
+    
+    it "allows multiple authorization blocks" do
+      test_class = Class.new(described_class) do
+        authorize { |user:| user.logged_in? }
+        authorize { |user:| user.has_permission?(:prompts) }
+      end
+      
+      prompt = test_class.new(headers: {})
+      authorized_user = double(logged_in?: true, has_permission?: true)
+      unauthorized_user = double(logged_in?: true, has_permission?: false)
+      not_logged_in_user = double(logged_in?: false, has_permission?: true)
+      
+      expect(prompt.authorized?(user: authorized_user)).to be true
+      expect(prompt.authorized?(user: unauthorized_user)).to be false
+      expect(prompt.authorized?(user: not_logged_in_user)).to be false
+    end
+
+    it "returns true when no authorization blocks are defined" do
+      test_class = Class.new(described_class)
+      prompt = test_class.new(headers: {})
+      
+      expect(prompt.authorized?).to be true
+    end
+
+    it "validates arguments before running authorization" do
+      test_class = Class.new(described_class) do
+        arguments do
+          required(:user).filled(:hash)
+        end
+        
+        authorize { |user:| user[:admin] }
+      end
+      
+      prompt = test_class.new(headers: {})
+      
+      expect {
+        prompt.authorized?(invalid: "data")
+      }.to raise_error(FastMcp::Prompt::InvalidArgumentsError)
+    end
+
+    it "supports authorization blocks without parameters" do
+      test_class = Class.new(described_class) do
+        authorize { true }
+      end
+      
+      prompt = test_class.new(headers: {})
+      expect(prompt.authorized?).to be true
+    end
+  end
+
+  describe "headers" do
+    it "accepts headers on initialization" do
+      prompt = described_class.new(headers: { "Authorization" => "Bearer token" })
+      expect(prompt.headers).to eq({ "Authorization" => "Bearer token" })
+    end
+
+    it "defaults to empty hash when no headers provided" do
+      prompt = described_class.new
+      expect(prompt.headers).to eq({})
+    end
+
+    it "allows access to headers in authorization blocks" do
+      test_class = Class.new(described_class) do
+        authorize { headers["Authorization"] == "Bearer valid-token" }
+      end
+      
+      valid_prompt = test_class.new(headers: { "Authorization" => "Bearer valid-token" })
+      invalid_prompt = test_class.new(headers: { "Authorization" => "Bearer invalid-token" })
+      
+      expect(valid_prompt.authorized?).to be true
+      expect(invalid_prompt.authorized?).to be false
+    end
+  end
+
   # Integration test with ERB templates
   describe 'integration with ERB templates' do
     let(:test_class) do
@@ -391,6 +557,124 @@ RSpec.describe FastMcp::Prompt do
 
       expect(result[0][:content][:text]).to eq("I'll help you review your code.")
       expect(result[1][:content][:text]).to eq("\nPlease review this code:\ndef hello(): pass\n")
+    end
+  end
+
+  describe "prompt filtering" do
+    let(:server) { FastMcp::Server.new(name: "test", version: "1.0.0") }
+    
+    before do
+      # Create some test prompt classes for filtering
+      @public_prompt = Class.new(described_class) do
+        prompt_name "public_prompt"
+        tags :public
+        description "A public prompt"
+        def call
+          messages(user: "Public prompt")
+        end
+      end
+      
+      @private_prompt = Class.new(described_class) do
+        prompt_name "private_prompt"
+        tags :private
+        description "A private prompt"
+        def call
+          messages(user: "Private prompt")
+        end
+      end
+      
+      @admin_prompt = Class.new(described_class) do
+        prompt_name "admin_prompt"
+        tags :admin
+        description "An admin prompt"
+        authorize { |user:| user[:admin] }
+        arguments do
+          required(:user).filled(:hash)
+        end
+        def call(**args)
+          messages(user: "Admin prompt")
+        end
+      end
+    end
+
+    it "filters prompts by tags" do
+      server.register_prompt(@public_prompt)
+      server.register_prompt(@private_prompt)
+      
+      server.filter_prompts do |request, prompts|
+        prompts.select { |p| p.tags.include?(:public) }
+      end
+      
+      # Create a filtered copy
+      request = double("request")
+      filtered_server = server.create_filtered_copy(request)
+      
+      # Verify only public prompts are included
+      expect(filtered_server.prompts.size).to eq(1)
+      expect(filtered_server.prompts.values.first).to eq(@public_prompt)
+    end
+    
+    it "chains multiple filters" do
+      server.register_prompt(@public_prompt)
+      server.register_prompt(@private_prompt)
+      server.register_prompt(@admin_prompt)
+      
+      # First filter: only non-admin prompts
+      server.filter_prompts { |r, p| p.reject { |prompt| prompt.tags.include?(:admin) } }
+      # Second filter: only prompts with tags
+      server.filter_prompts { |r, p| p.select { |prompt| prompt.tags.any? } }
+      
+      request = double("request")
+      filtered_server = server.create_filtered_copy(request)
+      
+      # Should include public and private, but not admin
+      expect(filtered_server.prompts.size).to eq(2)
+      prompt_classes = filtered_server.prompts.values
+      expect(prompt_classes).to include(@public_prompt, @private_prompt)
+      expect(prompt_classes).not_to include(@admin_prompt)
+    end
+
+    it "supports filtering by authorization status" do
+      server.register_prompt(@public_prompt)
+      server.register_prompt(@admin_prompt)
+      
+      # Filter to only include prompts that don't require authorization or are authorized
+      server.filter_prompts do |request, prompts|
+        prompts.select do |prompt_class|
+          # Check if prompt has authorization requirements
+          auth_blocks = prompt_class.authorization_blocks
+          if auth_blocks.nil? || auth_blocks.empty?
+            true # No authorization required
+          else
+            # Check authorization with mock user data
+            begin
+              prompt_instance = prompt_class.new(headers: request.headers || {})
+              prompt_instance.authorized?(user: { admin: true })
+            rescue
+              false # Authorization failed
+            end
+          end
+        end
+      end
+      
+      # Mock request with headers
+      request = double("request", headers: { "user" => "admin" })
+      filtered_server = server.create_filtered_copy(request)
+      
+      # Should include both prompts since we're passing admin user
+      expect(filtered_server.prompts.size).to eq(2)
+    end
+
+    it "handles empty filter results" do
+      server.register_prompt(@public_prompt)
+      
+      # Filter that excludes everything
+      server.filter_prompts { |r, p| [] }
+      
+      request = double("request")
+      filtered_server = server.create_filtered_copy(request)
+      
+      expect(filtered_server.prompts).to be_empty
     end
   end
 end
