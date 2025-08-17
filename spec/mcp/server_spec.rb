@@ -393,4 +393,125 @@ RSpec.describe FastMcp::Server do
       end
     end
   end
+
+  describe '#register_resource' do
+    it 'registers a resource with the server' do
+      test_resource_class = Class.new(FastMcp::Resource) do
+        def self.name
+          'test-resource'
+        end
+
+        def self.description
+          'A test resource'
+        end
+
+        def uri
+          'file://test.txt'
+        end
+
+        def name
+          'test.txt'
+        end
+
+        def mime_type
+          'text/plain'
+        end
+
+        def content
+          'Hello, World!'
+        end
+      end
+
+      server.register_resource(test_resource_class)
+
+      expect(server.instance_variable_get(:@resources)).to include(test_resource_class)
+    end
+  end
+
+  describe '#notify_resource_updated' do
+    let(:test_resource_class) do
+      Class.new(FastMcp::Resource) do
+        def self.name
+          'test-resource'
+        end
+
+        def self.description
+          'A test resource'
+        end
+
+        # Use the class method pattern for URI
+        uri 'file://test.txt'
+        resource_name 'test.txt'
+        mime_type 'text/plain'
+
+        def content
+          'Hello, World!'
+        end
+      end
+    end
+
+    before do
+      server.register_resource(test_resource_class)
+      # Simulate client initialization
+      server.instance_variable_set(:@client_initialized, true)
+    end
+
+    it 'finds resource by URI using array search, not hash lookup' do
+      # Subscribe to the resource
+      server.instance_variable_get(:@resource_subscriptions)['file://test.txt'] = true
+
+      # Mock the transport's send_message method to verify it's called
+      transport = double('transport')
+      server.instance_variable_set(:@transport, transport)
+      
+      expect(transport).to receive(:send_message).with(hash_including(
+        jsonrpc: '2.0',
+        method: 'notifications/resources/updated',
+        params: hash_including(
+          uri: 'file://test.txt',
+          name: 'test-resource',
+          mimeType: 'text/plain'
+        )
+      ))
+
+      # This should successfully find the resource using array.find, not hash lookup
+      server.notify_resource_updated('file://test.txt')
+    end
+
+    it 'does not send notification if no one is subscribed to the resource' do
+      # Don't subscribe to the resource
+      transport = double('transport')
+      server.instance_variable_set(:@transport, transport)
+      
+      expect(transport).not_to receive(:send_message)
+
+      server.notify_resource_updated('file://test.txt')
+    end
+
+    it 'does not send notification if client is not initialized' do
+      # Unset client initialization
+      server.instance_variable_set(:@client_initialized, false)
+      server.instance_variable_get(:@resource_subscriptions)['file://test.txt'] = true
+      
+      transport = double('transport')
+      server.instance_variable_set(:@transport, transport)
+
+      expect(transport).not_to receive(:send_message)
+
+      server.notify_resource_updated('file://test.txt')
+    end
+
+    it 'handles non-existent resource URI gracefully' do
+      # Subscribe to a different resource
+      server.instance_variable_get(:@resource_subscriptions)['file://nonexistent.txt'] = true
+      
+      transport = double('transport')
+      server.instance_variable_set(:@transport, transport)
+
+      # Mock should not be called since resource doesn't exist
+      expect(transport).not_to receive(:send_message)
+
+      server.notify_resource_updated('file://nonexistent.txt')
+    end
+  end
 end

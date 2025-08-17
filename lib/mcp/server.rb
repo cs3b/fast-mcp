@@ -232,6 +232,8 @@ module FastMcp
       return unless @client_initialized && @resource_subscriptions.key?(uri)
 
       resource = @resources.find { |r| r.uri == uri }
+      return unless resource
+
       notification = {
         jsonrpc: '2.0',
         method: 'notifications/resources/updated',
