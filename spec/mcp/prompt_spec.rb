@@ -2,6 +2,77 @@
 require 'spec_helper'
 require 'base64'
 
+RSpec.describe FastMcp::MessageBuilder do
+  let(:builder) { described_class.new }
+
+  describe '#initialize' do
+    it 'initializes with empty messages array' do
+      expect(builder.messages).to eq([])
+    end
+  end
+
+  describe '#add_message' do
+    it 'adds a message with specified role and content' do
+      builder.add_message(role: 'user', content: 'Hello!')
+      expect(builder.messages).to eq([{ role: 'user', content: 'Hello!' }])
+    end
+
+    it 'returns self for method chaining' do
+      result = builder.add_message(role: 'user', content: 'Hello!')
+      expect(result).to eq(builder)
+    end
+
+    it 'supports multiple messages' do
+      builder.add_message(role: 'user', content: 'First')
+             .add_message(role: 'assistant', content: 'Second')
+
+      expect(builder.messages).to eq([
+        { role: 'user', content: 'First' },
+        { role: 'assistant', content: 'Second' }
+      ])
+    end
+  end
+
+  describe '#user' do
+    it 'adds a user message' do
+      builder.user('Hello from user')
+      expect(builder.messages).to eq([{ role: 'user', content: 'Hello from user' }])
+    end
+  end
+
+  describe '#assistant' do
+    it 'adds an assistant message' do
+      builder.assistant('Hello from assistant')
+      expect(builder.messages).to eq([{ role: 'assistant', content: 'Hello from assistant' }])
+    end
+  end
+
+  describe 'multiple same-role messages' do
+    it 'supports multiple user messages' do
+      builder.user('First user message')
+             .user('Second user message')
+
+      expect(builder.messages).to eq([
+        { role: 'user', content: 'First user message' },
+        { role: 'user', content: 'Second user message' }
+      ])
+    end
+
+    it 'supports complex conversation patterns' do
+      builder.user('Example 1')
+             .assistant('Response 1')
+             .user('Example 2')
+             .assistant('Response 2')
+             .user('Follow-up question')
+
+      expect(builder.messages.size).to eq(5)
+      expect(builder.messages[0]).to eq({ role: 'user', content: 'Example 1' })
+      expect(builder.messages[1]).to eq({ role: 'assistant', content: 'Response 1' })
+      expect(builder.messages[4]).to eq({ role: 'user', content: 'Follow-up question' })
+    end
+  end
+end
+
 RSpec.describe FastMcp::Prompt do
   let(:roles) { { assistant: 'assistant', user: 'user' } }
 
@@ -260,47 +331,196 @@ RSpec.describe FastMcp::Prompt do
   describe '#messages' do
     let(:instance) { described_class.new }
 
-    it 'creates multiple messages from a hash' do
-      result = instance.messages(
-        assistant: 'Hello!',
-        user: 'How are you?'
-      )
-
-      expect(result).to be_an(Array)
-      expect(result.size).to eq(2)
-      expect(result[0][:role]).to eq('assistant')
-      expect(result[0][:content][:type]).to eq('text')
-      expect(result[0][:content][:text]).to eq('Hello!')
-      expect(result[1][:role]).to eq('user')
-      expect(result[1][:content][:type]).to eq('text')
-      expect(result[1][:content][:text]).to eq('How are you?')
-    end
-
-    it 'preserves the order of messages' do
-      result = instance.messages(
-        user_1: 'First message',
-        assistant: 'Second message',
-        user_2: 'Third message'
-      )
-
-      expect(result.size).to eq(3)
-      expect(result[0][:content][:text]).to eq('First message')
-      expect(result[1][:content][:text]).to eq('Second message')
-      expect(result[2][:content][:text]).to eq('Third message')
-    end
-
-    it 'raises an error for empty messages hash' do
-      expect do
-        instance.messages({})
-      end.to raise_error(ArgumentError, /At least one message must be provided/)
-    end
-
-    it 'raises an error for invalid role' do
-      expect do
-        instance.messages(
-          invalid_role: 'Hello!'
+    describe 'with hash input (backward compatibility)' do
+      it 'creates multiple messages from a hash' do
+        result = instance.messages(
+          assistant: 'Hello!',
+          user: 'How are you?'
         )
-      end.to raise_error(KeyError, /key not found: :invalid_role/)
+
+        expect(result).to be_an(Array)
+        expect(result.size).to eq(2)
+        expect(result[0][:role]).to eq('assistant')
+        expect(result[0][:content][:type]).to eq('text')
+        expect(result[0][:content][:text]).to eq('Hello!')
+        expect(result[1][:role]).to eq('user')
+        expect(result[1][:content][:type]).to eq('text')
+        expect(result[1][:content][:text]).to eq('How are you?')
+      end
+
+      it 'preserves the order of messages' do
+        result = instance.messages(
+          user_1: 'First message',
+          assistant: 'Second message',
+          user_2: 'Third message'
+        )
+
+        expect(result.size).to eq(3)
+        expect(result[0][:content][:text]).to eq('First message')
+        expect(result[1][:content][:text]).to eq('Second message')
+        expect(result[2][:content][:text]).to eq('Third message')
+      end
+
+      it 'raises an error for empty messages hash' do
+        expect do
+          instance.messages({})
+        end.to raise_error(ArgumentError, /At least one message must be provided/)
+      end
+
+      it 'raises an error for invalid role' do
+        expect do
+          instance.messages(
+            invalid_role: 'Hello!'
+          )
+        end.to raise_error(KeyError, /key not found: :invalid_role/)
+      end
+    end
+
+    describe 'with array input' do
+      it 'creates multiple messages from an array of message hashes' do
+        result = instance.messages([
+          { role: 'user', content: 'Hello!' },
+          { role: 'assistant', content: 'Hi there!' },
+          { role: 'user', content: 'How are you?' }
+        ])
+
+        expect(result).to be_an(Array)
+        expect(result.size).to eq(3)
+        expect(result[0][:role]).to eq('user')
+        expect(result[0][:content][:type]).to eq('text')
+        expect(result[0][:content][:text]).to eq('Hello!')
+        expect(result[1][:role]).to eq('assistant')
+        expect(result[1][:content][:type]).to eq('text')
+        expect(result[1][:content][:text]).to eq('Hi there!')
+        expect(result[2][:role]).to eq('user')
+        expect(result[2][:content][:type]).to eq('text')
+        expect(result[2][:content][:text]).to eq('How are you?')
+      end
+
+      it 'supports multiple messages with the same role' do
+        result = instance.messages([
+          { role: 'user', content: 'Example 1' },
+          { role: 'assistant', content: 'Response 1' },
+          { role: 'user', content: 'Example 2' },
+          { role: 'assistant', content: 'Response 2' }
+        ])
+
+        expect(result.size).to eq(4)
+        expect(result[0][:role]).to eq('user')
+        expect(result[0][:content][:text]).to eq('Example 1')
+        expect(result[1][:role]).to eq('assistant')
+        expect(result[1][:content][:text]).to eq('Response 1')
+        expect(result[2][:role]).to eq('user')
+        expect(result[2][:content][:text]).to eq('Example 2')
+        expect(result[3][:role]).to eq('assistant')
+        expect(result[3][:content][:text]).to eq('Response 2')
+      end
+
+      it 'handles complex content types in array format' do
+        valid_base64 = Base64.strict_encode64('test image data')
+        
+        result = instance.messages([
+          { 
+            role: 'user', 
+            content: {
+              type: 'image',
+              data: valid_base64,
+              mimeType: 'image/png'
+            }
+          },
+          {
+            role: 'assistant',
+            content: {
+              type: 'resource',
+              resource: {
+                uri: 'resource://example',
+                mimeType: 'text/plain',
+                text: 'Resource content'
+              }
+            }
+          }
+        ])
+
+        expect(result.size).to eq(2)
+        expect(result[0][:content][:type]).to eq('image')
+        expect(result[0][:content][:data]).to eq(valid_base64)
+        expect(result[1][:content][:type]).to eq('resource')
+        expect(result[1][:content][:resource][:uri]).to eq('resource://example')
+      end
+
+      it 'raises an error for empty array' do
+        expect do
+          instance.messages([])
+        end.to raise_error(ArgumentError, /At least one message must be provided/)
+      end
+
+      it 'raises an error for invalid message structure' do
+        expect do
+          instance.messages([
+            { role: 'user' }  # missing content
+          ])
+        end.to raise_error(ArgumentError, /Each message must be a hash with :role and :content keys/)
+      end
+
+      it 'raises an error for invalid role in array format' do
+        expect do
+          instance.messages([
+            { role: 'invalid_role', content: 'Hello!' }
+          ])
+        end.to raise_error(ArgumentError, /Invalid role/)
+      end
+    end
+
+    describe 'with builder pattern' do
+      it 'creates messages using block syntax' do
+        result = instance.messages do
+          user 'Hello!'
+          assistant 'Hi there!'
+          user 'How are you?'
+        end
+
+        expect(result).to be_an(Array)
+        expect(result.size).to eq(3)
+        expect(result[0][:role]).to eq('user')
+        expect(result[0][:content]).to eq('Hello!')
+        expect(result[1][:role]).to eq('assistant')
+        expect(result[1][:content]).to eq('Hi there!')
+        expect(result[2][:role]).to eq('user')
+        expect(result[2][:content]).to eq('How are you?')
+      end
+
+      it 'supports add_message method for explicit role specification' do
+        result = instance.messages do
+          add_message(role: 'user', content: 'Example 1')
+          add_message(role: 'assistant', content: 'Response 1')
+          add_message(role: 'user', content: 'Example 2')
+          add_message(role: 'assistant', content: 'Response 2')
+        end
+
+        expect(result.size).to eq(4)
+        expect(result[0][:role]).to eq('user')
+        expect(result[0][:content]).to eq('Example 1')
+        expect(result[1][:role]).to eq('assistant')
+        expect(result[1][:content]).to eq('Response 1')
+        expect(result[2][:role]).to eq('user')
+        expect(result[2][:content]).to eq('Example 2')
+        expect(result[3][:role]).to eq('assistant')
+        expect(result[3][:content]).to eq('Response 2')
+      end
+    end
+
+    describe 'error handling' do
+      it 'raises an error for nil input' do
+        expect do
+          instance.messages(nil)
+        end.to raise_error(ArgumentError, /At least one message must be provided/)
+      end
+
+      it 'raises an error for unsupported input types' do
+        expect do
+          instance.messages('invalid input')
+        end.to raise_error(ArgumentError, /Messages input must be an Array or Hash/)
+      end
     end
   end
 

@@ -5,6 +5,31 @@ require 'erb'
 require 'base64'
 
 module FastMcp
+  # Builder class for creating messages with a fluent API
+  class MessageBuilder
+    def initialize
+      @messages = []
+    end
+
+    attr_reader :messages
+
+    # Add a message with specified role and content
+    def add_message(role:, content:)
+      @messages << { role: role.to_s, content: content }
+      self
+    end
+
+    # Convenience method for user messages
+    def user(content)
+      add_message(role: 'user', content: content)
+    end
+
+    # Convenience method for assistant messages
+    def assistant(content)
+      add_message(role: 'assistant', content: content)
+    end
+  end
+
   # Main Prompt class that represents an MCP Prompt
   class Prompt
     class InvalidArgumentsError < StandardError; end
@@ -136,17 +161,61 @@ module FastMcp
       }
     end
 
-    # Create multiple messages from a hash of role => content pairs
-    # @param messages_hash [Hash] A hash of role => content pairs
+    # Create multiple messages from either a hash of role => content pairs or an array of message hashes
+    # @param messages_input [Hash, Array] Either a hash of role => content pairs or array of message hashes
+    # @param block [Proc] Optional block for builder pattern
     # @return [Array<Hash>] An array of messages
-    def messages(messages_hash)
-      raise ArgumentError, 'At least one message must be provided' if messages_hash.empty?
+    def messages(messages_input = nil, &block)
+      if block_given?
+        builder = MessageBuilder.new
+        builder.instance_eval(&block)
+        return builder.messages
+      end
 
+      raise ArgumentError, 'At least one message must be provided' if messages_input.nil? || messages_input.empty?
+
+      case messages_input
+      when Array
+        process_array_messages(messages_input)
+      when Hash
+        process_hash_messages(messages_input)
+      else
+        raise ArgumentError, 'Messages input must be an Array or Hash'
+      end
+    end
+
+    private
+
+    # Process array of message hashes
+    def process_array_messages(messages_array)
+      messages_array.map do |message_hash|
+        unless message_hash.is_a?(Hash) && message_hash[:role] && message_hash[:content]
+          raise ArgumentError, 'Each message must be a hash with :role and :content keys'
+        end
+
+        role = message_hash[:role].to_s
+        content = message_hash[:content]
+        
+        validate_role(role)
+        processed_content = content.is_a?(Hash) && content[:type] ? content : content_from(content)
+        validate_content(processed_content)
+
+        {
+          role: role,
+          content: processed_content
+        }
+      end
+    end
+
+    # Process hash of role => content pairs (backward compatibility)
+    def process_hash_messages(messages_hash)
       messages_hash.map do |role_key, content|
         role = role_key.to_s.gsub(/_\d+$/, '').to_sym
         { role: ROLES.fetch(role), content: content_from(content) }
       end
     end
+
+    public
 
     # Helper method to extract content from a hash
     def content_from(content)
