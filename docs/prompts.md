@@ -12,6 +12,7 @@ Prompts are a powerful feature in Fast MCP that allow you to define structured m
 - [Creating Messages](#creating-messages)
   - [Hash Format API](#hash-format-api)
   - [Array Format API](#array-format-api)
+  - [MessageBuilder API](#messagebuilder-api)
   - [Multiple Messages with Same Role](#multiple-messages-with-same-role)
 - [Using Templates](#using-templates)
   - [ERB Templates](#erb-templates)
@@ -50,8 +51,8 @@ class SimpleExamplePrompt < FastMcp::Prompt
   # prompt_name is auto-generated as 'simple_example' from the class name
   description 'A simple example prompt'
   
-  def call(**_args)
-    messages(
+  def self.call(**_args)
+    new.messages(
       assistant: "I'm an AI assistant. How can I help you?",
       user: "Tell me about Ruby."
     )
@@ -64,7 +65,9 @@ When defining a prompt class, you can:
 - Set a name using the `prompt_name` class method (optional - auto-generated from class name if not specified)
 - Set a description using the `description` class method
 - Define arguments using the `arguments` class method with Dry::Schema
-- Implement the message creation in the `call` instance method
+- Implement the message creation in the `self.call` class method
+
+> **Important**: The `call` method should be defined as a class method (`self.call`) that creates a new instance and calls the `messages` method on it. This is the standard pattern for FastMCP prompts.
 
 #### Automatic Naming
 
@@ -95,12 +98,12 @@ class QueryPrompt < FastMcp::Prompt
   description 'A prompt for answering user queries'
   
   arguments do
-    required(:query).filled(:string).description("The user's question")
-    optional(:context).filled(:string).description("Additional context")
+    required(:query).filled(:string)
+    optional(:context).filled(:string)
   end
   
-  def call(query:, context: nil)
-    messages(
+  def self.call(query:, context: nil)
+    new.messages(
       assistant: "I'll help answer your question.",
       user: context ? "Question: #{query}\nContext: #{context}" : "Question: #{query}"
     )
@@ -108,12 +111,13 @@ class QueryPrompt < FastMcp::Prompt
 end
 ```
 
-The `arguments` method works the same way as in tools, allowing you to define:
+The `arguments` method works similarly to tools, allowing you to define:
 
 - Required arguments using the `required` method
 - Optional arguments using the `optional` method
 - Types and validations for each argument
-- Descriptions for each argument
+
+> **Note**: Unlike tools, prompts currently don't support the `.description()` method on schema fields. If you need to document your arguments, use comments in your code or add them to the prompt's main description.
 
 ### Message Structure
 
@@ -140,8 +144,8 @@ Fast MCP provides flexible ways to create messages through the `messages` method
 The traditional way to create messages is using a hash with roles as keys:
 
 ```ruby
-def call(query:)
-  messages(
+def self.call(query:)
+  new.messages(
     assistant: "I'll help you with your question.",
     user: "My question is: #{query}"
   )
@@ -152,38 +156,78 @@ This creates an array of messages with the specified roles and content. Note tha
 
 ### Array Format API
 
-You can also use an array of hashes, each containing a single role-content pair:
+You can also use an array of message hashes with `:role` and `:content` keys:
 
 ```ruby
-def call(query:)
-  messages(
-    { assistant: "I'll help you with your question." },
-    { user: "My question is: #{query}" }
-  )
+def self.call(query:)
+  new.messages([
+    { role: 'assistant', content: "I'll help you with your question." },
+    { role: 'user', content: "My question is: #{query}" }
+  ])
 end
 ```
 
 This format is particularly useful when you need to maintain a specific order of messages.
 
-### Multiple Messages with Same Role
+### MessageBuilder API
 
-One of the key advantages of the array format is the ability to have multiple messages with the same role:
+For more complex message construction, you can use the MessageBuilder class directly:
 
 ```ruby
-def call(query:, examples: [])
+def self.call(query:, examples: [])
+  new.messages do
+    assistant "I'll help you with your question."
+    
+    # Add example messages if provided
+    examples.each do |example|
+      user "Example: #{example}"
+    end
+    
+    # Add the main query
+    user "My question is: #{query}"
+  end
+end
+```
+
+The MessageBuilder provides a fluent API with these methods:
+- `user(content)` - Add a user message
+- `assistant(content)` - Add an assistant message
+- `add_message(role:, content:)` - Add a message with a specific role
+
+### Multiple Messages with Same Role
+
+Both the array format and MessageBuilder support multiple messages with the same role:
+
+```ruby
+# Using array format
+def self.call(query:, examples: [])
   message_array = [
-    { assistant: "I'll help you with your question." }
+    { role: 'assistant', content: "I'll help you with your question." }
   ]
   
   # Add example messages if provided
   examples.each do |example|
-    message_array << { user: "Example: #{example}" }
+    message_array << { role: 'user', content: "Example: #{example}" }
   end
   
   # Add the main query
-  message_array << { user: "My question is: #{query}" }
+  message_array << { role: 'user', content: "My question is: #{query}" }
   
-  messages(*message_array)
+  new.messages(message_array)
+end
+
+# Using MessageBuilder
+def self.call(query:, examples: [])
+  new.messages do
+    assistant "I'll help you with your question."
+    
+    # Add multiple user messages
+    examples.each do |example|
+      user "Example: #{example}"
+    end
+    
+    user "My question is: #{query}"
+  end
 end
 ```
 
@@ -201,15 +245,15 @@ class CodeReviewPrompt < FastMcp::Prompt
   description 'A prompt for code review'
   
   arguments do
-    required(:code).filled(:string).description("Code to review")
-    optional(:language).filled(:string).description("Programming language")
+    required(:code).filled(:string)
+    optional(:language).filled(:string)
   end
   
-  def call(code:, language: nil)
+  def self.call(code:, language: nil)
     assistant_template = File.read(File.join(File.dirname(__FILE__), 'templates/code_review_assistant.erb'))
     user_template = File.read(File.join(File.dirname(__FILE__), 'templates/code_review_user.erb'))
     
-    messages(
+    new.messages(
       assistant: ERB.new(assistant_template).result(binding),
       user: ERB.new(user_template).result(binding)
     )
@@ -243,12 +287,12 @@ class ApiPrompt < FastMcp::Prompt
   description 'A prompt for generating API requests'
   
   arguments do
-    required(:endpoint).filled(:string).description("API endpoint")
-    required(:method).filled(:string).description("HTTP method")
-    optional(:params).hash.description("Request parameters")
+    required(:endpoint).filled(:string)
+    required(:method).filled(:string)
+    optional(:params).hash
   end
   
-  def call(endpoint:, method:, params: {})
+  def self.call(endpoint:, method:, params: {})
     json_template = <<-ERB
 {
   "request": {
@@ -260,7 +304,7 @@ class ApiPrompt < FastMcp::Prompt
 }
     ERB
     
-    messages(
+    new.messages(
       assistant: "I'll help you generate an API request.",
       user: ERB.new(json_template).result(binding)
     )
@@ -291,12 +335,12 @@ class XmlPrompt < FastMcp::Prompt
   description 'A prompt for generating XML documents'
   
   arguments do
-    required(:document_type).filled(:string).description("Type of XML document")
-    required(:elements).array.description("Elements to include")
-    optional(:attributes).hash.description("Document attributes")
+    required(:document_type).filled(:string)
+    required(:elements).array
+    optional(:attributes).hash
   end
   
-  def call(document_type:, elements:, attributes: {})
+  def self.call(document_type:, elements:, attributes: {})
     xml_template = <<-ERB
 <?xml version="1.0" encoding="UTF-8"?>
 <<%= document_type %><% attributes.each do |key, value| %> <%= key %>="<%= value %>"<% end %>>
@@ -308,7 +352,7 @@ class XmlPrompt < FastMcp::Prompt
 </<%= document_type %>>
     ERB
     
-    messages(
+    new.messages(
       assistant: "I'll help you generate an XML document.",
       user: ERB.new(xml_template).result(binding)
     )
@@ -343,11 +387,11 @@ class InlinePrompt < FastMcp::Prompt
   description 'An example prompt that uses inline text'
   
   arguments do
-    required(:query).filled(:string).description("The user query")
-    optional(:context).filled(:string).description("Additional context")
+    required(:query).filled(:string)
+    optional(:context).filled(:string)
   end
 
-  def call(query:, context: nil)
+  def self.call(query:, context: nil)
     # Create assistant message
     assistant_message = "I'll help you answer your question about: #{query}"
     
@@ -358,7 +402,7 @@ class InlinePrompt < FastMcp::Prompt
                      "My question is: #{query}"
                    end
 
-    messages(
+    new.messages(
       assistant: assistant_message,
       user: user_message
     )
@@ -370,18 +414,66 @@ end
 
 ### Message Content Types
 
-Fast MCP supports different content types for messages:
+Fast MCP supports different content types for messages. You can create content objects using the built-in helper methods:
+
+#### Text Content
 
 ```ruby
-# Text content (default)
-message(role: :user, content: text_content("Hello"))
-
-# Image content
-message(role: :user, content: image_content(image_data, "image/png"))
-
-# Resource content
-message(role: :user, content: resource_content(resource_id))
+class TextPrompt < FastMcp::Prompt
+  def self.call(message:)
+    prompt = new
+    text_content = prompt.text_content(message)
+    prompt.messages([
+      { role: 'user', content: text_content }
+    ])
+  end
+end
 ```
+
+#### Image Content
+
+```ruby
+class ImagePrompt < FastMcp::Prompt
+  def self.call(base64_data:, mime_type: 'image/png')
+    prompt = new
+    image_content = prompt.image_content(base64_data, mime_type)
+    prompt.messages([
+      { role: 'user', content: image_content }
+    ])
+  end
+end
+```
+
+#### Resource Content
+
+```ruby
+class ResourcePrompt < FastMcp::Prompt
+  def self.call(uri:, mime_type:, text: nil, blob: nil)
+    prompt = new
+    resource_content = prompt.resource_content(uri, mime_type, text: text, blob: blob)
+    prompt.messages([
+      { role: 'user', content: resource_content }
+    ])
+  end
+end
+```
+
+#### Content Helper Methods
+
+The following helper methods are available for creating properly formatted content:
+
+- `text_content(text)` - Creates text content with type 'text'
+- `image_content(data, mime_type)` - Creates image content with base64 data and MIME type
+- `resource_content(uri, mime_type, text: nil, blob: nil)` - Creates resource content
+- `content_from(content)` - Automatically detects and creates appropriate content type
+
+#### Content Validation
+
+All content is automatically validated to ensure it meets MCP specification requirements:
+
+- Text content must have a `:text` field
+- Image content must have `:data` (valid base64) and `:mimeType` fields
+- Resource content must have `:uri`, `:mimeType`, and either `:text` or `:blob` fields
 
 Remember that only "user" and "assistant" are valid roles according to the MCP specification.
 
@@ -395,11 +487,11 @@ class WeatherPrompt < FastMcp::Prompt
   description 'A prompt for weather forecasts'
   
   arguments do
-    required(:location).filled(:string).description("Location for forecast")
-    optional(:days).filled(:integer).description("Number of days")
+    required(:location).filled(:string)
+    optional(:days).filled(:integer)
   end
   
-  def call(location:, days: 3)
+  def self.call(location:, days: 3)
     # Fetch weather data (example)
     weather_data = WeatherService.forecast(location, days)
     
@@ -408,12 +500,37 @@ class WeatherPrompt < FastMcp::Prompt
       "#{day[:date]}: #{day[:condition]}, High: #{day[:high]}°C, Low: #{day[:low]}°C"
     end.join("\n")
     
-    messages(
+    new.messages(
       assistant: "I'll provide a weather forecast for #{location}.",
       user: "What's the weather forecast for #{location} for the next #{days} days?",
       assistant: "Here's the raw weather data:\n#{weather_context}",
       user: "Can you summarize this forecast in a friendly way?"
     )
+  end
+end
+```
+
+### Individual Message Creation
+
+For more control over message creation, you can use the `message` method to create individual messages:
+
+```ruby
+class CustomMessagePrompt < FastMcp::Prompt
+  def self.call(text:)
+    prompt = new
+    
+    # Create individual messages
+    intro_message = prompt.message(
+      role: 'assistant',
+      content: prompt.text_content("I'll help you with that.")
+    )
+    
+    user_message = prompt.message(
+      role: 'user',
+      content: prompt.text_content(text)
+    )
+    
+    [intro_message, user_message]
   end
 end
 ```
@@ -451,7 +568,25 @@ Control access to prompts:
 
 ```ruby
 class SecurePrompt < FastMcp::Prompt
-  authorize { |user:| user.has_permission?(:use_prompts) }
+  prompt_name 'secure_prompt'
+  description 'A prompt that requires authorization'
+  
+  arguments do
+    required(:message).filled(:string)
+  end
+  
+  # Authorization based on headers
+  authorize { headers['role'] == 'admin' }
+  
+  # Authorization based on arguments
+  authorize { |message:| message != 'forbidden' }
+  
+  def self.call(message:)
+    new.messages(
+      assistant: "This is a secure prompt.",
+      user: message
+    )
+  end
 end
 ```
 
@@ -480,11 +615,11 @@ class QAPrompt < FastMcp::Prompt
   description 'A simple question-answer prompt'
   
   arguments do
-    required(:question).filled(:string).description("The question to ask")
+    required(:question).filled(:string)
   end
   
-  def call(question:)
-    messages(
+  def self.call(question:)
+    new.messages(
       assistant: "I'll answer your questions to the best of my ability.",
       user: question
     )
@@ -500,28 +635,25 @@ class ConversationPrompt < FastMcp::Prompt
   description 'A multi-message conversation prompt'
   
   arguments do
-    required(:topic).filled(:string).description("The topic to discuss")
-    optional(:user_background).filled(:string).description("User background info")
+    required(:topic).filled(:string)
+    optional(:user_background).filled(:string)
   end
   
-  def call(topic:, user_background: nil)
-    message_array = []
-    
-    # First message - assistant introduction
-    message_array << { assistant: "I'm going to help you understand #{topic}." }
-    
-    # Second message - user background if provided
-    if user_background
-      message_array << { user: "My background: #{user_background}" }
+  def self.call(topic:, user_background: nil)
+    new.messages do
+      # First message - assistant introduction
+      assistant "I'm going to help you understand #{topic}."
+      
+      # Second message - user background if provided
+      if user_background
+        user "My background: #{user_background}"
+        # Third message - assistant acknowledgment
+        assistant "I'll tailor my explanation based on your background."
+      end
+      
+      # Final message - main user query
+      user "Please explain #{topic} to me."
     end
-    
-    # Third message - assistant acknowledgment
-    message_array << { assistant: "I'll tailor my explanation based on your background." }
-    
-    # Fourth message - main user query
-    message_array << { user: "Please explain #{topic} to me." }
-    
-    messages(*message_array)
   end
 end
 ```
@@ -534,15 +666,15 @@ class CodeReviewPrompt < FastMcp::Prompt
   description 'A prompt for code review'
   
   arguments do
-    required(:code).filled(:string).description("Code to review")
-    optional(:programming_language).filled(:string).description("Language the code is written in")
+    required(:code).filled(:string)
+    optional(:programming_language).filled(:string)
   end
   
-  def call(code:, programming_language: nil)
+  def self.call(code:, programming_language: nil)
     assistant_template = File.read(File.join(File.dirname(__FILE__), 'templates/code_review_assistant.erb'))
     user_template = File.read(File.join(File.dirname(__FILE__), 'templates/code_review_user.erb'))
     
-    messages(
+    new.messages(
       assistant: ERB.new(assistant_template).result(binding),
       user: ERB.new(user_template).result(binding)
     )
