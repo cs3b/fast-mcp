@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - TBD
+
+### BREAKING CHANGES
+
+#### Stateless Resources
+Resources are now stateless and must read from external sources instead of maintaining instance state.
+
+**Before (v1.5.x):**
+```ruby
+class CounterResource < FastMcp::Resource
+  include Singleton
+  def initialize
+    @count = 0
+  end
+end
+```
+
+**After (v1.6.0+):**
+```ruby
+class CounterResource < FastMcp::Resource
+  def content
+    File.exist?('counter.txt') ? File.read('counter.txt').strip : '0'
+  end
+end
+```
+
+This change affects all existing resource implementations that maintain internal state. Resources must now read from external data sources (files, databases, APIs, etc.) rather than storing state in instance variables.
+
+**Migration Impact:**
+- All singleton resources need to be refactored
+- Instance variables in resources will no longer persist
+- Resources must implement external persistence mechanisms
+
+For complete upgrade instructions, see the migration documentation.
+
+### Added
+- Comprehensive Prompts Feature implementation following MCP specification
+- Prompt templates with ERB support
+- Prompt argument validation
+- Prompt filtering support with ServerFiltering architecture
+
 ## [1.2.0] - 2025-04-14
 
 ### Added
