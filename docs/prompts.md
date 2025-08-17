@@ -46,8 +46,8 @@ Prompts are particularly useful for maintaining consistent interactions with LLM
 To define a prompt, create a class that inherits from `FastMcp::Prompt`:
 
 ```ruby
-class SimplePrompt < FastMcp::Prompt
-  prompt_name 'simple_example'
+class SimpleExamplePrompt < FastMcp::Prompt
+  # prompt_name is auto-generated as 'simple_example' from the class name
   description 'A simple example prompt'
   
   def call(**_args)
@@ -61,10 +61,29 @@ end
 
 When defining a prompt class, you can:
 
-- Set a name using the `prompt_name` class method
+- Set a name using the `prompt_name` class method (optional - auto-generated from class name if not specified)
 - Set a description using the `description` class method
 - Define arguments using the `arguments` class method with Dry::Schema
 - Implement the message creation in the `call` instance method
+
+#### Automatic Naming
+
+If you don't specify a `prompt_name`, FastMCP will automatically generate one from your class name:
+- The class name is converted to snake_case
+- Any "Prompt" suffix is removed
+- For example: `CodeReviewPrompt` → `code_review`, `DataAnalysisPrompt` → `data_analysis`
+
+```ruby
+class CodeReviewPrompt < FastMcp::Prompt
+  # No need to specify prompt_name - it will be "code_review"
+  description 'Reviews code for best practices'
+end
+
+class CustomNamePrompt < FastMcp::Prompt
+  prompt_name 'my_custom_name'  # Override auto-naming when needed
+  description 'Uses a custom name instead of auto-generated'
+end
+```
 
 ### Prompt Arguments
 

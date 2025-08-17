@@ -271,7 +271,7 @@ server.register_resource(StatisticsResource)
 
 # Define prompts for structured AI interactions
 class CodeReviewPrompt < FastMcp::Prompt
-  name "code_review"
+  # prompt_name is automatically generated as "code_review" from class name
   description "Review code for best practices"
   
   arguments do

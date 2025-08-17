@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SamplePrompt < ApplicationPrompt
-  name "sample_prompt"
+  prompt_name "sample_prompt"
   description "A sample prompt to demonstrate functionality"
   
   # Define arguments using Dry::Schema syntax
