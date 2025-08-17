@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SamplePrompt < ApplicationPrompt
-  prompt_name "sample_prompt"
+  # prompt_name is auto-generated as "sample" from class name
   description "A sample prompt to demonstrate functionality"
   
   # Define arguments using Dry::Schema syntax
@@ -10,22 +10,16 @@ class SamplePrompt < ApplicationPrompt
     optional(:context).filled(:string).description("Additional context")
   end
   
-  # Define the prompt template
-  template do |args|
-    messages = []
-    messages << {
-      role: "system",
-      content: "You are a helpful assistant."
-    }
-    messages << {
-      role: "user",
-      content: "Process this input: #{args[:input]}"
-    }
-    messages << {
-      role: "user",
-      content: "Context: #{args[:context]}"
-    } if args[:context]
+  # Implement the call method to generate messages
+  def call(input:, context: nil)
+    # Build the user message
+    user_message = "Process this input: #{input}"
+    user_message += "\n\nAdditional context: #{context}" if context
     
-    messages
+    # Using the messages helper to create properly formatted messages
+    messages(
+      assistant: "I'm here to help you process your input.",
+      user: user_message
+    )
   end
 end
