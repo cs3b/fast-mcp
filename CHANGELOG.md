@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.6.0] - TBD
+## [1.6.0] - 2025-04-14
 
 ### BREAKING CHANGES
 
@@ -39,14 +39,6 @@ This change affects all existing resource implementations that maintain internal
 - Resources must implement external persistence mechanisms
 
 For complete upgrade instructions, see the migration documentation.
-
-### Added
-- Comprehensive Prompts Feature implementation following MCP specification
-- Prompt templates with ERB support
-- Prompt argument validation
-- Prompt filtering support with ServerFiltering architecture
-
-## [1.2.0] - 2025-04-14
 
 ### Added
 - Tool annotations support for providing hints about tool behavior (readOnlyHint, destructiveHint, etc.)
